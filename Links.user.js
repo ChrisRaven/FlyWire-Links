@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Links
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.1.1
+// @version      0.1.1.1
 // @description  Collects all claimed and completed cells, as well as cells added manually by user
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -558,34 +558,31 @@ function deleteHandler(row) {
 
 
 function updateHandler(row) {
-  function updateEntry() {
-    let tableNode = getTable(row)
-    let type = 'favourites'
-    let dataSource = dataFavourites
-
-    Dock.getShareableUrl(url => {
-      dataSource.rows[row.id].link = url
-      let link = row.getElementsByClassName('link')[0]
-      link.innerContent = url
-      link.href = url
-
-      save(type, dataSource)
-    })
-  }
-
+  let tableNode = getTable(row)
+  let type = 'favourites'
+  let dataSource = dataFavourites
   let description = row.getElementsByClassName('description')[0].textContent
 
   let updateDialog = Dock.dialog({
     id: 'kk-links-update',
     html: description ? '<div>Do you want to update entry described as "' + description + '"?</div>' : '<div>Do you want to update this entry?</div>',
-    okCallback: updateEntry,
+    okCallback: () => save(type, dataSource),
+    cancelCallback: () => {},
     okLabel: 'Yes',
     cancelLabel: 'No',
-    cancelCallback: () => {},
     destroyAfterClosing: true
   })
 
-  updateDialog.show()
+  Dock.getShareableUrl(url => {
+    dataSource.rows[row.id].link = url
+    let link = row.getElementsByClassName('link')[0]
+    link.innerContent = url
+    link.href = url
+
+    updateDialog.show()
+  })
+
+  
 }
 
 

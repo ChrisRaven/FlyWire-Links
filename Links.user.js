@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Links
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.1
+// @version      0.1.1
 // @description  Collects all claimed and completed cells, as well as cells added manually by user
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -233,6 +233,7 @@ function assignEvents() {
     if (list.contains('edit')) return editHandler(row)
     if (list.contains('copy')) return copyHandler(row)
     if (list.contains('delete')) return deleteHandler(row)
+    if (list.contains('update')) return updateHandler(row)
   })
 
   // add empty
@@ -241,7 +242,8 @@ function assignEvents() {
       type: 'favourites',
       rowId: null,
       link: '',
-      description: ''
+      description: '',
+      destroyAfterClosing: true
     })
   })
 
@@ -252,7 +254,8 @@ function assignEvents() {
         type: 'favourites',
         rowId: null,
         link: url,
-        description: ''
+        description: '',
+        destroyAfterClosing: true
       })
     })
   })
@@ -333,7 +336,8 @@ function editDialog({ type, rowId, link, description, claimed, completed }) {
     okCallback: okCallback,
     okLabel: 'Save',
     cancelCallback: () => {},
-    destroyAfterClosing: true
+    destroyAfterClosing: true,
+    width: 250
   })
 
   dialog.show()
@@ -418,6 +422,7 @@ function createFavRow({ id, date, link, description }) {
       <button class="kk-links-button edit">Edit</button>
       <button class="kk-links-button copy">Copy</button>
       <button class="kk-links-button delete">Delete</button>
+      <button class="kk-links-button update">Update</button>
     </td>
   </tr>`
 }
@@ -543,11 +548,44 @@ function deleteHandler(row) {
     html: '<div>Do you want to delete this entry?</div>',
     okCallback: deleteEntry,
     okLabel: 'Yes',
-    cancelCallback: 'No',
-    cancelCallback: () => {}
+    cancelLabel: 'No',
+    cancelCallback: () => {},
+    destroyAfterClosing: true
   })
 
   deleteDialog.show()
+}
+
+
+function updateHandler(row) {
+  function updateEntry() {
+    let tableNode = getTable(row)
+    let type = 'favourites'
+    let dataSource = dataFavourites
+
+    Dock.getShareableUrl(url => {
+      dataSource.rows[row.id].link = url
+      let link = row.getElementsByClassName('link')[0]
+      link.innerContent = url
+      link.href = url
+
+      save(type, dataSource)
+    })
+  }
+
+  let description = row.getElementsByClassName('description')[0].textContent
+
+  let updateDialog = Dock.dialog({
+    id: 'kk-links-update',
+    html: description ? '<div>Do you want to update entry described as "' + description + '"?</div>' : '<div>Do you want to update this entry?</div>',
+    okCallback: updateEntry,
+    okLabel: 'Yes',
+    cancelLabel: 'No',
+    cancelCallback: () => {},
+    destroyAfterClosing: true
+  })
+
+  updateDialog.show()
 }
 
 
@@ -678,6 +716,10 @@ function generateCSS() {
       width: 245px;
     }
 
+    #kk-links-favourites-table .actions {
+      width: 330px;
+    }
+
     .links-panel .description {
       width: 400px;
     }
@@ -692,7 +734,11 @@ function generateCSS() {
     #kk-links-edit .content > * {
       display: block;
       padding-bottom: 5px;
-      width: 150px;
+      width: 240px;
+    }
+
+    #kk-links-edit .content textarea {
+      height: 70px;
     }
   `
 }

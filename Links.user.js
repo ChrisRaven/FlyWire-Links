@@ -45,7 +45,6 @@ let wait = setInterval(() => {
 let dataFavourites, dataHistory
 
 function main() {
-
   if (typeof DEV !== 'undefined') {
     document.getElementById('insertNGTopBar').addEventListener('click', e => {
     })
@@ -61,24 +60,28 @@ function main() {
     link.classList.add('nge-gs-link')
     link.innerHTML = '<button title="Press Shift+L to toggle">Links</button>'
     link.addEventListener('click', e => {
-      createMainDialog().show()
+      createMainDialog()
     })
     menu[0].appendChild(link)
   }
 
   let waitForMenu = setInterval(waitForMenuCallback, 100)
-
-  storage.get('kk-links-history').then(values => {
-    values = values['kk-links-history']
-    dataHistory = values ? JSON.parse(values) : { rows: {} }
-  })
-
-  storage.get('kk-links-favourites').then(values => {
-    values = values['kk-links-favourites']
-    dataFavourites = values ? JSON.parse(values) : { rows: {} }
-  })
-
   assignGlobalEvents()
+}
+
+
+function getDataFromLS(callback) {
+  const historyPromise = storage.get('kk-links-history')
+  const favouritesPromise = storage.get('kk-links-favourites')
+  Promise.all([historyPromise, favouritesPromise]).then(([historyValues, favouritesValues]) => {
+    historyValues = historyValues['kk-links-history']
+    dataHistory = historyValues ? JSON.parse(historyValues) : { rows: {} }
+
+    favouritesValues = favouritesValues['kk-links-favourites']
+    dataFavourites = favouritesValues ? JSON.parse(favouritesValues) : { rows: {} }
+
+    callback && typeof callback === 'function' && callback()
+  })
 }
 
 
@@ -174,18 +177,20 @@ function assignGlobalEvents() {
 
 
 function createMainDialog() {
-  let dialog = Dock.dialog({
-    html: generateHTML(),
-    id: 'kk-links',
-    css: generateCSS(),
-    cancelCallback: () => {},
-    cancelLabel: 'Close',
-    afterCreateCallback: afterCreateCallback,
-    width: '70vw',
-    destroyAfterClosing: true
-  })
+  getDataFromLS(() => {
+    let dialog = Dock.dialog({
+      html: generateHTML(),
+      id: 'kk-links',
+      css: generateCSS(),
+      cancelCallback: () => {},
+      cancelLabel: 'Close',
+      afterCreateCallback: afterCreateCallback,
+      width: '70vw',
+      destroyAfterClosing: true
+    })
 
-  return dialog
+    dialog.show()
+  })
 }
 
 

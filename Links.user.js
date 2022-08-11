@@ -86,93 +86,130 @@ function getDataFromLS(callback) {
 
 
 function assignGlobalEvents() {
-  document.addEventListener('fetch', e => {
-    let response = e.detail.response
-    let url = e.detail.url
+  document.addEventListener('fetch', e => handleClaimedCell(e))
+  document.addEventListener('click', e => handleCompletedCell(e))
+}
 
-    if (response.code && response.code === 400) return console.error('Links: code 400')
 
-    if (url.includes('proofreading_drive?') && response && response.root_id) {
-      Dock.getShareableUrl(url => {
-        saveEntry({
-          id: Dock.getRandomHexString(),
-          date: Date.now(),
-          segId: response.root_id,
-          type: 'history',
-          link: url,
-          description: '',
-          claimed: true,
-          completed: false
-        })
-      })
+function handleClaimedCell(e) {
+  let response = e.detail.response
+  let url = e.detail.url
+
+  if (response.code && response.code === 400) return console.error('Links: code 400')
+
+  if (url.includes('proofreading_drive?') && response && response.root_id && response.ngl_coordinates) {
+    let coords = response.ngl_coordinates
+  
+    // source: webpack:///src/state.ts (FlyWire)
+    const coordsSpaced = coords.slice(1, -1).split(" ")
+    const xyz = []
+    for (const coord of coordsSpaced) {
+      if (coord === '') continue
+      xyz.push(parseInt(coord))
     }
-  })
+    coords = xyz
 
-  // completed
-  document.addEventListener('click', e => {
-    if (!e.target.classList.contains('nge_segment')) return
-    if (e.target.textContent !== 'Yes') return
-
-    // current rootId
-    let arrayed = []
-    let rowId = null
-    if (dataHistory.rows.length) {
-      Dock.getRootIdByCurrentCoords(rootId => {
-        dataHistory.rows.forEach(entry => {
-          if (entry.claimed) {
-            arrayed.push({
-              rowId: entry.rowId,
-              segId: entry.segId
-            })
-          }
-        })
-      })
-
-      let lastFive = arrayed.slice(-5).reverse()
-      
-      // if there are any claimed cells in the table...
-      if (lastFive.length) {
-        // ...get rootId of the last one
-        let segId = lastFive[0].segId
-        if (segId) {
-          Dock.getRootId(segId, entryRootId => {
-            if (rootId === entryRootId) {
-              rowId = lastFive[0].rowId
-            }
-          })
-        }
-      }
-
-      // if the last claimed cell isn't the correct one,
-      // check four previous ones (if they exists)
-      if (!rowId && lastFive.length > 1) {
-        for (const i = 1; i < lastFive.length; i++) {
-          let segId = lastFive[i].segId
-          if (segId) {
-            Dock.getRootId(segId, entryRootId => {
-              if (rootId === entryRootId) {
-                rowId = lastFive[i].rowId
-              }
-            })
-          }
-        }
-      }
-    }
-
-    Dock.getShareableUrl(link => {
-      let args = {
-        id: rowId || Dock.getRandomHexString(),
+    Dock.getShareableUrl(url => {
+      saveEntry({
+        id: Dock.getRandomHexString(),
+        date: Date.now(),
+        segId: response.root_id,
         type: 'history',
-        link: link,
-        claimed: !!rowId,
-        completed: true,
+        link: url,
         description: '',
-        date: Date.now()
-      }
-
-      rowId ? updateEntry(args) : saveEntry(args)
+        claimed: true,
+        completed: false,
+        coords: coords
+      })
     })
+  }
+}
+
+
+function handleCompletedCell(e) {
+  if (!e.target.classList.contains('nge_segment')) return
+  if (e.target.textContent !== 'Yes') return
+
+  getDataFromLS(() => {
+    if (Object.entries(dataHistory.rows).length) {
+      Dock.getRootIdByCurrentCoords(rootId => findLastFiveClaimedCells_step1(rootId))
+    }
   })
+}
+
+
+function findLastFiveClaimedCells_step1(rootId) {
+  let claimed = []
+  Object.values(dataHistory.rows).forEach(entry => {
+    if (entry.claimed) {
+      claimed.push({
+        rowId: entry.id,
+        segId: entry.segId,
+        coords: entry.coords,
+        date: entry.date
+      })
+    }
+  })
+
+  let lastFive = claimed.sort((a, b) => {
+    if (a.date < b.date) return -1
+    if (a.date === b.date) return 0
+    if (a.date > b.date) return 1
+  }).slice(-5)
+
+  let x = [], y = [], z = []
+  lastFive.forEach(el => {
+    if (el.coords) {
+      x.push(el.coords[0])
+      y.push(el.coords[1])
+      z.push(el.coords[2])
+    }
+  })
+
+  x.length && findRootSegments_step2(x, y, z, lastFive, rootId)
+}
+
+
+function findRootSegments_step2(x, y, z, lastFive, rootId) {
+  Dock.getSegmentId(x, y, z, segmentIds => {
+    let promises = segmentIds.map(segmentId => Dock.getRootId(segmentId, null, true))
+
+    Promise.all(promises)
+      .then(result => Promise.all(result.map(res => res.json())))
+      .then(result => updateCompletedRow_step3(result, lastFive, rootId))
+  })
+}
+
+
+function updateCompletedRow_step3(result, lastFive, rootId) {
+  let found
+  result.some((rowRootId, i) => {
+    found = rootId === rowRootId.root_id
+
+    if (found) {
+      let rowId = lastFive[i].rowId
+      getDataFromLS(() => {
+        dataHistory.rows[rowId].completed = true
+        save('history', dataHistory)
+      })
+    }
+
+    return found
+  })
+
+  if (!found) {
+    Dock.getShareableUrl(url => {
+      saveEntry({
+        id: Dock.getRandomHexString(),
+        date: Date.now(),
+        type: 'history',
+        link: url,
+        description: '',
+        claimed: false,
+        completed: true
+      })
+    })
+  }
 }
 
 
@@ -403,18 +440,22 @@ function save(type, dataSource) {
 
 
 function saveEntry(args) {
-  let dataSource = args.type === 'history' ? dataHistory : dataFavourites
-  dataSource.rows[args.id] = args
-
-  save(args.type, dataSource)
+  getDataFromLS(() => {
+    let dataSource = args.type === 'history' ? dataHistory : dataFavourites
+    dataSource.rows[args.id] = args
+  
+    save(args.type, dataSource)
+  })
 }
 
 
 function updateEntry(args) {
-  let dataSource = args.type === 'history' ? dataHistory : dataFavourites
-  Object.assign(dataSource.rows[args.id], args)
-
-  save(args.type, dataSource)
+  getDataFromLS(() => {
+    let dataSource = args.type === 'history' ? dataHistory : dataFavourites
+    Object.assign(dataSource.rows[args.id], args)
+  
+    save(args.type, dataSource)
+  })
 }
 
 
@@ -540,12 +581,17 @@ function deleteHandler(row) {
     let type = tableNode.dataset.type
     let dataSource = type === 'history' ? dataHistory : dataFavourites
 
-    delete dataSource.rows[row.id]
-    row.remove()
-    if (!Object.entries(dataSource.rows).length) {
-      tableNode.style.visibility = 'hidden'
+    try {
+      delete dataSource.rows[row.id]
+      row.remove()
+      if (!Object.entries(dataSource.rows).length) {
+        tableNode.style.visibility = 'hidden'
+      }
+      save(type, dataSource)
     }
-    save(type, dataSource)
+    catch (e) {
+      console.log('Links: entry probably doesn\'t exist')
+    }
   }
 
   let deleteDialog = Dock.dialog({

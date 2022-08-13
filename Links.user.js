@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Links
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.1.1.1
+// @version      0.1.2
 // @description  Collects all claimed and completed cells, as well as cells added manually by user
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Links
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.1.3
+// @version      0.1.3.1
 // @description  Collects all claimed and completed cells, as well as cells added manually by user
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -613,7 +613,7 @@ function updateHandler(row) {
 
   Dock.getShareableUrl(url => {
     dataSource.rows[row.id].link = url
-    let link = row.getElementsByClassName('link')[0]
+    let link = row.getElementsByClassName('link')[0].getElementsByTagName('a')[0]
     link.innerContent = url
     link.href = url
 

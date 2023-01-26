@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         Links
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.1.3.1
+// @version      0.1.3.2
 // @description  Collects all claimed and completed cells, as well as cells added manually by user
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
+// @match        https://proofreading.flywire.ai/*
 // @grant        none
 // @updateURL    https://raw.githubusercontent.com/ChrisRaven/FlyWire-Links/main/Links.user.js
 // @downloadURL  https://raw.githubusercontent.com/ChrisRaven/FlyWire-Links/main/Links.user.js
